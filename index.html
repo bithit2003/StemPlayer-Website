@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="StemPlayer is a focused Windows practice tool for musicians working with separated stems. Slow down, loop, remix, transpose, save, and continue tomorrow." />
+  <meta name="theme-color" content="#111318" />
+  <title>StemPlayer V2 — Practice the song your way.</title>
+  <style>
+    :root {
+      --bg: #0d0f13;
+      --surface: #151922;
+      --surface-2: #1c2230;
+      --text: #f4f7fb;
+      --muted: #a9b2c3;
+      --line: rgba(255,255,255,.1);
+      --accent: #f0b44d;
+      --accent-2: #ffd98c;
+      --max: 1120px;
+      --radius: 22px;
+      --shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% -10%, rgba(240,180,77,.12), transparent 34rem),
+        linear-gradient(180deg, #0b0d11 0%, #10131a 48%, #0b0d11 100%);
+      line-height: 1.6;
+    }
+    a { color: inherit; }
+    img, video { max-width: 100%; display: block; }
+    .wrap { width: min(var(--max), calc(100% - 40px)); margin: 0 auto; }
+    .nav {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(16px);
+      background: rgba(11,13,17,.76);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { font-weight: 800; letter-spacing: .01em; text-decoration: none; }
+    .brand span { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: .95rem; }
+    .nav-links a { text-decoration: none; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 48px; padding: 0 20px; border-radius: 999px;
+      border: 1px solid var(--line); text-decoration: none; font-weight: 750;
+      transition: .2s ease; cursor: pointer; font: inherit;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: #17120a; border-color: transparent; }
+    .btn-secondary { background: rgba(255,255,255,.04); }
+    .btn-small { min-height: 40px; padding: 0 16px; font-size: .92rem; }
+    .hero { padding: 96px 0 58px; text-align: center; }
+    .eyebrow { color: var(--accent-2); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; font-size: .82rem; }
+    h1 { font-size: clamp(2.7rem, 7vw, 5.9rem); line-height: .98; letter-spacing: -.055em; margin: 14px auto 22px; max-width: 920px; }
+    .hero p { max-width: 760px; margin: 0 auto; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.25rem); }
+    .hero-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+    .micro { color: var(--muted); font-size: .9rem; margin-top: 15px; }
+    .product-shot {
+      margin: 48px auto 0; padding: 10px; border: 1px solid var(--line); border-radius: 26px;
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)); box-shadow: var(--shadow);
+    }
+    section { padding: 82px 0; border-top: 1px solid rgba(255,255,255,.06); }
+    .section-head { max-width: 760px; margin-bottom: 34px; }
+    .section-head.center { text-align: center; margin-inline: auto; }
+    h2 { font-size: clamp(2rem, 4vw, 3.6rem); line-height: 1.08; letter-spacing: -.035em; margin: 8px 0 14px; }
+    .lead { color: var(--muted); font-size: 1.08rem; }
+    .demo-frame { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #000; box-shadow: var(--shadow); }
+    .flow { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0 0 26px; color: var(--muted); }
+    .flow b { color: var(--text); }
+    .story { max-width: 860px; font-size: clamp(1.25rem, 2.4vw, 1.7rem); line-height: 1.55; }
+    .story strong { color: var(--accent-2); }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.035); }
+    .card .num { color: var(--accent); font-weight: 900; font-size: .9rem; }
+    .card h3 { margin: 8px 0 7px; font-size: 1.16rem; }
+    .card p { margin: 0; color: var(--muted); }
+    .chain { display: grid; grid-template-columns: 1fr auto 1.3fr auto 1fr auto 1fr; align-items: stretch; gap: 12px; }
+    .chain .step { padding: 22px 18px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+    .chain .active { border-color: rgba(240,180,77,.55); background: linear-gradient(180deg, rgba(240,180,77,.12), rgba(255,255,255,.03)); }
+    .arrow { align-self: center; color: var(--muted); font-size: 1.5rem; }
+    .compare { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: var(--radius); background: rgba(255,255,255,.025); }
+    .compare th, .compare td { padding: 16px; border-bottom: 1px solid var(--line); text-align: center; }
+    .compare th:first-child, .compare td:first-child { text-align: left; }
+    .compare th { background: rgba(255,255,255,.04); }
+    .yes { color: var(--accent-2); font-weight: 900; }
+    .pricing-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .community-placeholder { border: 1px dashed rgba(255,255,255,.18); padding: 26px; border-radius: var(--radius); color: var(--muted); text-align: center; }
+    .community-placeholder strong { color: var(--text); }
+    details { border-bottom: 1px solid var(--line); padding: 17px 0; }
+    summary { cursor: pointer; font-weight: 750; }
+    details p { color: var(--muted); margin: 10px 0 0; }
+    .final { text-align: center; }
+    footer { padding: 34px 0 50px; border-top: 1px solid var(--line); color: var(--muted); font-size: .93rem; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: center; }
+    .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    .footer-links a { color: var(--muted); }
+    .notice { margin-top: 18px; color: #d4b36f; font-size: .88rem; }
+    @media (max-width: 860px) {
+      .nav-links a:not(.btn) { display: none; }
+      .grid { grid-template-columns: 1fr 1fr; }
+      .chain { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); justify-self: center; }
+      .compare { font-size: .9rem; }
+      .compare th, .compare td { padding: 12px 8px; }
+    }
+    @media (max-width: 600px) {
+      .wrap { width: min(var(--max), calc(100% - 24px)); }
+      .hero { padding-top: 70px; }
+      section { padding: 62px 0; }
+      .grid { grid-template-columns: 1fr; }
+      .hero-actions .btn, .pricing-actions .btn { width: 100%; }
+      .footer-inner { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top">StemPlayer <span>V2</span></a>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">V1 vs V2</a>
+        <a class="btn btn-primary btn-small buy-v2" href="#">Get V2 — $5</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <header class="hero">
+      <div class="wrap">
+        <div class="eyebrow">Windows practice tool for musicians</div>
+        <h1>Practice the song your way.</h1>
+        <p>Turn separated stems into a practice session you can slow down, loop, remix, transpose, save, and continue tomorrow.</p>
+        <div class="hero-actions">
+          <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
+          <a class="btn btn-primary buy-v2" href="#">Get V2 — $5 one-time</a>
+        </div>
+        <div class="micro">Windows desktop app · One-time purchase · No subscription</div>
+        <div class="product-shot">
+          <img src="assets/stemplayer-v2-main.png" alt="StemPlayer V2 main interface" />
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head center">
+          <div class="eyebrow">Demo</div>
+          <h2>See StemPlayer in action.</h2>
+          <div class="flow"><b>Open</b> → <b>Adjust</b> → <b>Loop</b> → <b>Practice</b> → <b>Save</b> → <b>Continue</b></div>
+        </div>
+        <div class="demo-frame">
+          <video controls preload="metadata" playsinline poster="assets/stemplayer-v2-main.png">
+            <source src="assets/stemplayer-v2-demo.mp4" type="video/mp4" />
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head"><div class="eyebrow">Why StemPlayer?</div><h2>Turn a song into your practice session.</h2></div>
+        <div class="story">
+          Sometimes you don't need another lesson. You need to hear less guitar. Remove the vocals. Solo the bass. Slow down a difficult passage. Loop it until you get it right. Change the key. Then come back tomorrow and continue where you left off.
+          <p><strong>StemPlayer helps you practice. It doesn't teach you.</strong></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <div class="section-head"><div class="eyebrow">How it works</div><h2>A simple practice workflow.</h2><p class="lead">Built for the part after stem separation and before performance or recording.</p></div>
+        <div class="grid">
+          <div class="card"><div class="num">01</div><h3>Open your song</h3><p>Load separated stems and keep the original full mix as your Reference track.</p></div>
+          <div class="card"><div class="num">02</div><h3>Build your practice mix</h3><p>Adjust volume, Mute, or Solo individual parts.</p></div>
+          <div class="card"><div class="num">03</div><h3>Work on hard sections</h3><p>Slow the song down and use A/B Loop to repeat exactly what you need.</p></div>
+          <div class="card"><div class="num">04</div><h3>Practice in another key</h3><p>Shift the song from −4 to +4 semitones.</p></div>
+          <div class="card"><div class="num">05</div><h3>Get chord guidance</h3><p>Follow Current Chord, Next Chord, and the Chord Timeline.</p></div>
+          <div class="card"><div class="num">06</div><h3>Save and continue</h3><p>Save a Preset or full Practice Session and pick up later.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head"><div class="eyebrow">V2 features</div><h2>Everything you need for focused practice.</h2></div>
+        <div class="grid">
+          <div class="card"><h3>Stem Mixer</h3><p>Reference · Vocals · Drums · Bass · Other</p></div>
+          <div class="card"><h3>Practice Controls</h3><p>Volume · Mute · Solo · Playback Speed · A/B Loop</p></div>
+          <div class="card"><h3>Quick Presets</h3><p>Switch quickly between useful practice mixes with Q1–Q5.</p></div>
+          <div class="card"><h3>Pitch Shift</h3><p>Practice from −4 to +4 semitones.</p></div>
+          <div class="card"><h3>Chord Analysis</h3><p>Current Chord · Next Chord · Chord Timeline</p></div>
+          <div class="card"><h3>Practice Sessions</h3><p>Save your setup and continue your practice later.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head center"><div class="eyebrow">From practice to performance</div><h2>StemPlayer fits in the middle.</h2></div>
+        <div class="chain">
+          <div class="step"><strong>Separate</strong><br><span class="lead">Moises / UVR / Demucs</span></div>
+          <div class="arrow">→</div>
+          <div class="step active"><strong>Practice & prepare</strong><br><span class="lead">StemPlayer</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><strong>Perform / Record</strong><br><span class="lead">Your instrument / DAW</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><strong>Release</strong><br><span class="lead">Distribution / streaming</span></div>
+        </div>
+        <p class="lead" style="text-align:center;margin-top:24px">StemPlayer doesn't replace stem separation, a DAW, or a music teacher. It fills the focused practice step in between.</p>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="wrap">
+        <div class="section-head center"><div class="eyebrow">Choose your version</div><h2>Start free. Upgrade when you need more.</h2></div>
+        <div style="overflow-x:auto;border-radius:22px;border:1px solid var(--line)">
+          <table class="compare">
+            <thead><tr><th>Feature</th><th>V1 — Free</th><th>V2 — $5 one-time</th></tr></thead>
+            <tbody>
+              <tr><td>Stem mixer</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Volume / Mute / Solo</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>A/B Loop</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Playback Speed</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Presets</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Quick Presets Q1–Q5</td><td>—</td><td class="yes">✓</td></tr>
+              <tr><td>Practice Sessions</td><td>—</td><td class="yes">✓</td></tr>
+              <tr><td>Pitch Shift ±4</td><td>—</td><td class="yes">✓</td></tr>
+              <tr><td>Chord Analysis</td><td>—</td><td class="yes">✓</td></tr>
+              <tr><td>Chord Timeline</td><td>—</td><td class="yes">✓</td></tr>
+              <tr><td>Subscription</td><td><strong>No</strong></td><td><strong>No</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pricing-actions">
+          <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
+          <a class="btn btn-primary buy-v2" href="#">Get V2 — $5 one-time</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="community">
+      <div class="wrap">
+        <div class="section-head center"><div class="eyebrow">Community</div><h2>Built around real practice.</h2><p class="lead">Feedback is open from day one. Public testimonials and download counts will only appear when there is enough real, verified data.</p></div>
+        <div class="community-placeholder"><strong>Testimonials + public counters are intentionally hidden for launch.</strong><br>We won't invent social proof.</div>
+        <div class="pricing-actions">
+          <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/issues/new" target="_blank" rel="noopener">Send feedback</a>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head"><div class="eyebrow">FAQ</div><h2>Good to know.</h2></div>
+        <details><summary>Does StemPlayer separate songs into stems?</summary><p>No. StemPlayer works with stems you have already separated. The recommended V2 workflow is a 4-stem setup such as htdemucs plus the original full mix as the Reference track.</p></details>
+        <details><summary>Is StemPlayer a DAW?</summary><p>No. StemPlayer is a focused music practice tool.</p></details>
+        <details><summary>Does StemPlayer teach guitar, bass, drums, or vocals?</summary><p>No. StemPlayer helps you practice. It doesn't teach you.</p></details>
+        <details><summary>Is V2 a subscription?</summary><p>No. StemPlayer V2 is $5 one-time.</p></details>
+        <details><summary>What operating system does it support?</summary><p>StemPlayer V2 currently supports Windows.</p></details>
+        <details><summary>What happens after I buy V2?</summary><p>Your payment is verified before you receive V2 installer/download instructions and your individual StemPlayer V2 license.</p></details>
+        <details><summary>Can I share Presets and Practice Sessions?</summary><p>Yes. Preset and Session files are designed to be portable. Each V2 user still needs their own valid product license.</p></details>
+      </div>
+    </section>
+
+    <section class="final">
+      <div class="wrap">
+        <div class="eyebrow">StemPlayer V2</div>
+        <h2>Your song. Your instrument. Your practice session.</h2>
+        <p class="lead">Practice the song your way.</p>
+        <div class="pricing-actions">
+          <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
+          <a class="btn btn-primary buy-v2" href="#">Get StemPlayer V2 — $5</a>
+        </div>
+        <div class="micro">Windows · One-time purchase · No subscription</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <div><strong style="color:var(--text)">StemPlayer</strong> · From practice to performance.</div>
+      <div class="footer-links">
+        <a href="https://github.com/bithit2003/StemPlayer" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/bithit2003/StemPlayer/issues/new" target="_blank" rel="noopener">Feedback</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // RELEASE CONFIGURATION
+    // Paste the live PayPal Payment Link between the quotes before public launch.
+    const PAYPAL_V2_URL = "";
+
+    document.querySelectorAll('.buy-v2').forEach((button) => {
+      if (PAYPAL_V2_URL) {
+        button.href = PAYPAL_V2_URL;
+        button.target = '_blank';
+        button.rel = 'noopener';
+      } else {
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          alert('V2 checkout is being connected for release. Please check back shortly.');
+        });
+      }
+    });
+  </script>
+</body>
+</html>
