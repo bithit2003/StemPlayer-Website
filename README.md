@@ -3,24 +3,28 @@
 Static, GitHub-Pages-ready landing page for the StemPlayer V2 release.
 
 ## Included
+
 - `index.html` — full responsive one-page site
 - `assets/stemplayer-v2-main.png` — real V2 screenshot
 - `assets/stemplayer-v2-demo.mp4` — V2 product demo
 
 ## Already wired
+
 - V1 Free CTA → https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0
 - Feedback → https://github.com/bithit2003/StemPlayer/issues/new
 
-## One release value still required
-Open `index.html` and set:
+## V2 checkout
 
-```js
-const PAYPAL_V2_URL = "PASTE_LIVE_PAYPAL_PAYMENT_LINK_HERE";
-```
+StemPlayer V2 is available for a one-time price of **$5 USD**.
 
-The handoff intentionally did not store the raw PayPal Payment Link, so it has not been guessed or fabricated here.
+The public landing page is connected to the live PayPal checkout.
+
+- Price: **$5 one-time**
+- Subscription: **No**
+- Platform: **Windows**
 
 ## Launch policy
+
 - V2 price: USD 5 one-time
 - No subscription
 - Testimonials/download counters are not published until real verified data exists
