@@ -1,3 +1,4 @@
+import { getStore } from "@netlify/blobs";
 async function getPayPalAccessToken() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
@@ -39,6 +40,40 @@ async function getPayPalAccessToken() {
 
 export default async () => {
   try {
+
+    const store = getStore({
+    name: "stemplayer-commerce",
+    consistency: "strong"
+    });
+
+    const state = await store.get("state.json", {
+    type: "json",
+    consistency: "strong"
+    });
+
+    if (!state) {
+    throw new Error("Commerce state not initialized");
+    }
+
+    const earlyBirdRemaining = Math.max(
+    0,
+    state.early_bird_limit - state.early_bird_used
+    );
+
+    const isEarlyBird = earlyBirdRemaining > 0;
+
+    const amount = isEarlyBird
+    ? state.early_bird_price_usd
+    : state.regular_price_usd;
+
+    const referenceId = isEarlyBird
+    ? "STEMPLAYER_V2_EARLY_BIRD"
+    : "STEMPLAYER_V2_STANDARD";
+
+    const description = isEarlyBird
+    ? "StemPlayer V2 - Early Bird License"
+    : "StemPlayer V2 - Standard License";
+
     const { accessToken, baseUrl } = await getPayPalAccessToken();
 
     const orderResponse = await fetch(
@@ -52,16 +87,16 @@ export default async () => {
         },
         body: JSON.stringify({
           intent: "CAPTURE",
-          purchase_units: [
-            {
-              reference_id: "STEMPLAYER_V2_EARLY_BIRD",
-              description: "StemPlayer V2 - Early Bird License",
-              amount: {
-                currency_code: "USD",
-                value: "5.00"
-              }
+        purchase_units: [
+        {
+            reference_id: referenceId,
+            description,
+            amount: {
+            currency_code: "USD",
+            value: amount
             }
-          ],
+        }
+        ],
           application_context: {
             brand_name: "StemPlayer",
             landing_page: "NO_PREFERENCE",
@@ -101,9 +136,13 @@ export default async () => {
         ok: true,
         order_id: orderData.id,
         status: orderData.status,
-        amount: "5.00",
+        amount,
         currency: "USD",
-        product: "StemPlayer V2 Early Bird",
+        product: isEarlyBird
+        ? "StemPlayer V2 Early Bird"
+        : "StemPlayer V2",
+        early_bird: isEarlyBird,
+        early_bird_remaining: earlyBirdRemaining,
         approval_url: approvalLink
       }),
       {
@@ -112,6 +151,7 @@ export default async () => {
       }
     );
   } catch (error) {
+    console.error("paypal-create-order failed:", error);
     return new Response(
       JSON.stringify({
         ok: false,
