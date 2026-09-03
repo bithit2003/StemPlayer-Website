@@ -72,10 +72,15 @@ export default async (request) => {
       );
     }
 
-    const privateKeyPem =
-      process.env.STEMPLAYER_V2_PRIVATE_KEY_PEM;
+    const privateKeyPemRaw =
+    process.env.STEMPLAYER_V2_PRIVATE_KEY_PEM;
 
-    if (!privateKeyPem) {
+    const privateKeyPem = privateKeyPemRaw
+    ?.replace(/\\n/g, "\n")
+    .replace(/^\uFEFF/, "")
+    .trim();
+
+    if (!privateKeyPemRaw) {
       return new Response(
         JSON.stringify({
           ok: false,
@@ -185,9 +190,10 @@ export default async (request) => {
     );
 
     // 4. Sign with Ed25519 private key
-    const privateKey = crypto.createPrivateKey(
-      privateKeyPem
-    );
+    const privateKey = crypto.createPrivateKey({
+    key: privateKeyPem,
+    format: "pem"
+    });
 
     const signature = crypto.sign(
       null,
