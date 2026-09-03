@@ -5,7 +5,8 @@ const STATE_KEY = "state.json";
 
 const DEFAULT_STATE = {
   early_bird_limit: 30,
-  early_bird_used: 0,
+  early_bird_sold: 0,
+  early_bird_reserved: 0,
   early_bird_price_usd: "5.00",
   regular_price_usd: "9.99"
 };
@@ -33,9 +34,18 @@ export default async () => {
       });
     }
 
+    const sold =
+      state.early_bird_sold ??
+      state.early_bird_used ??
+      0;
+
+    const reserved =
+      state.early_bird_reserved ??
+      0;
+
     const remaining = Math.max(
       0,
-      state.early_bird_limit - state.early_bird_used
+      state.early_bird_limit - sold - reserved
     );
 
     const active = remaining > 0;
@@ -46,7 +56,8 @@ export default async () => {
         early_bird: {
           active,
           limit: state.early_bird_limit,
-          used: state.early_bird_used,
+          sold,
+          reserved,
           remaining
         },
         pricing: {

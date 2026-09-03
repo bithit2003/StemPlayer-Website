@@ -55,9 +55,18 @@ export default async () => {
     throw new Error("Commerce state not initialized");
     }
 
+    const sold =
+    state.early_bird_sold ??
+    state.early_bird_used ??
+    0;
+
+    const reserved =
+    state.early_bird_reserved ??
+    0;
+
     const earlyBirdRemaining = Math.max(
     0,
-    state.early_bird_limit - state.early_bird_used
+    state.early_bird_limit - sold - reserved
     );
 
     const isEarlyBird = earlyBirdRemaining > 0;
