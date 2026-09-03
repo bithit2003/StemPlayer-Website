@@ -1,4 +1,4 @@
-const { getStore } = require("@netlify/blobs");
+import { getStore } from "@netlify/blobs";
 
 const STORE_NAME = "stemplayer-commerce";
 const STATE_KEY = "state.json";
@@ -10,7 +10,7 @@ const DEFAULT_STATE = {
   regular_price_usd: "9.99"
 };
 
-exports.handler = async function () {
+export default async () => {
   try {
     const store = getStore({
       name: STORE_NAME,
@@ -23,58 +23,60 @@ exports.handler = async function () {
     });
 
     if (!state) {
-      const result = await store.setJSON(
-        STATE_KEY,
-        DEFAULT_STATE,
-        { onlyIfNew: true }
-      );
+      await store.setJSON(STATE_KEY, DEFAULT_STATE, {
+        onlyIfNew: true
+      });
 
-      state = DEFAULT_STATE;
+      state = await store.get(STATE_KEY, {
+        type: "json",
+        consistency: "strong"
+      });
     }
 
-    const earlyBirdRemaining = Math.max(
+    const remaining = Math.max(
       0,
       state.early_bird_limit - state.early_bird_used
     );
 
-    const earlyBirdActive = earlyBirdRemaining > 0;
+    const active = remaining > 0;
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store"
-      },
-      body: JSON.stringify({
+    return Response.json(
+      {
         ok: true,
         early_bird: {
-          active: earlyBirdActive,
+          active,
           limit: state.early_bird_limit,
           used: state.early_bird_used,
-          remaining: earlyBirdRemaining
+          remaining
         },
         pricing: {
-          current_usd: earlyBirdActive
+          current_usd: active
             ? state.early_bird_price_usd
             : state.regular_price_usd,
           early_bird_usd: state.early_bird_price_usd,
           regular_usd: state.regular_price_usd
         }
-      })
-    };
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store"
+        }
+      }
+    );
   } catch (error) {
     console.error("commerce-status failed:", error);
 
-    return {
-      statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store"
-      },
-      body: JSON.stringify({
+    return Response.json(
+      {
         ok: false,
         error: "Unable to load commerce status"
-      })
-    };
+      },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store"
+        }
+      }
+    );
   }
 };
