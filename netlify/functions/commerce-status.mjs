@@ -39,9 +39,19 @@ export default async () => {
       state.early_bird_used ??
       0;
 
+    const now = Date.now();
+
+    const activeReservations = Object.values(
+      state.early_bird_reservations ?? {}
+    ).filter(item => {
+      const expiresAt = Date.parse(item.expires_at);
+      return Number.isFinite(expiresAt) && expiresAt > now;
+    });
+
     const reserved =
-      state.early_bird_reserved ??
-      0;
+      state.early_bird_reservations
+        ? activeReservations.length
+        : state.early_bird_reserved ?? 0;
 
     const remaining = Math.max(
       0,

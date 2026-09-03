@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import crypto from "node:crypto";
 async function getPayPalAccessToken() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
@@ -46,30 +47,105 @@ export default async () => {
     consistency: "strong"
     });
 
+    let reservation = null;
+    let isEarlyBird = false;
+    let earlyBirdRemaining = 0;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+    const result = await store.getWithMetadata("state.json", {
+        type: "json",
+        consistency: "strong"
+    });
+
+    if (!result?.data) {
+        throw new Error("Commerce state not initialized");
+    }
+
+    const currentState = result.data;
+    const etag = result.etag;
+
+    const sold =
+        currentState.early_bird_sold ??
+        currentState.early_bird_used ??
+        0;
+
+    const now = Date.now();
+
+    const activeReservations = Object.fromEntries(
+    Object.entries(
+        currentState.early_bird_reservations ?? {}
+    ).filter(([, item]) => {
+        const expiresAt = Date.parse(item.expires_at);
+        return Number.isFinite(expiresAt) && expiresAt > now;
+    })
+    );
+
+    const reserved = Object.keys(
+    activeReservations
+    ).length;
+
+    earlyBirdRemaining = Math.max(
+    0,
+    currentState.early_bird_limit - sold - reserved
+    );
+
+    if (earlyBirdRemaining <= 0) {
+        break;
+    }
+
+    const reservationId = crypto.randomUUID();
+    const createdAt = new Date();
+    const expiresAt = new Date(
+        createdAt.getTime() + 30 * 60 * 1000
+    );
+
+    const reservations = {
+        ...activeReservations,
+        [reservationId]: {
+        created_at: createdAt.toISOString(),
+        expires_at: expiresAt.toISOString()
+        }
+    };
+
+    const nextState = {
+        ...currentState,
+        early_bird_sold: sold,
+        early_bird_reserved: reserved + 1,
+        early_bird_reservations: reservations
+    };
+
+    delete nextState.early_bird_used;
+
+    const writeResult = await store.setJSON(
+        "state.json",
+        nextState,
+        {
+        onlyIfMatch: etag
+        }
+    );
+
+    if (writeResult.modified) {
+        reservation = {
+        id: reservationId,
+        expires_at: expiresAt.toISOString()
+        };
+
+        isEarlyBird = true;
+        earlyBirdRemaining -= 1;
+        break;
+    }
+
+    if (attempt === 4) {
+        throw new Error(
+        "Unable to reserve Early Bird slot"
+        );
+    }
+    }
+
     const state = await store.get("state.json", {
     type: "json",
     consistency: "strong"
     });
-
-    if (!state) {
-    throw new Error("Commerce state not initialized");
-    }
-
-    const sold =
-    state.early_bird_sold ??
-    state.early_bird_used ??
-    0;
-
-    const reserved =
-    state.early_bird_reserved ??
-    0;
-
-    const earlyBirdRemaining = Math.max(
-    0,
-    state.early_bird_limit - sold - reserved
-    );
-
-    const isEarlyBird = earlyBirdRemaining > 0;
 
     const amount = isEarlyBird
     ? state.early_bird_price_usd
@@ -99,6 +175,9 @@ export default async () => {
         purchase_units: [
         {
             reference_id: referenceId,
+            ...(reservation?.id
+            ? { custom_id: reservation.id }
+            : {}),
             description,
             amount: {
             currency_code: "USD",
@@ -117,6 +196,48 @@ export default async () => {
     );
 
     const orderData = await orderResponse.json();
+
+    if (!orderResponse.ok && reservation?.id) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const result = await store.getWithMetadata("state.json", {
+        type: "json",
+        consistency: "strong"
+        });
+
+        if (!result?.data) {
+        break;
+        }
+
+        const currentState = result.data;
+        const reservations = {
+        ...(currentState.early_bird_reservations ?? {})
+        };
+
+        if (!reservations[reservation.id]) {
+        break;
+        }
+
+        delete reservations[reservation.id];
+
+        const nextState = {
+        ...currentState,
+        early_bird_reserved: Object.keys(reservations).length,
+        early_bird_reservations: reservations
+        };
+
+        const writeResult = await store.setJSON(
+        "state.json",
+        nextState,
+        {
+            onlyIfMatch: result.etag
+        }
+        );
+
+        if (writeResult.modified) {
+        break;
+        }
+    }
+    }
 
     if (!orderResponse.ok) {
       return new Response(
