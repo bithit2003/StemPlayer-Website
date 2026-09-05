@@ -1,8 +1,12 @@
+import { getStore } from "@netlify/blobs";
 import crypto from "node:crypto";
 
 function canonicalLicensePayload(payload) {
   // Phải khớp Python:
   // json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+  //
+  // Thứ tự alphabet:
+  // edition, issued_at, license_id, product, purchase_ref, schema
   const sortedPayload = {
     edition: payload.edition,
     issued_at: payload.issued_at,
@@ -15,42 +19,68 @@ function canonicalLicensePayload(payload) {
   return JSON.stringify(sortedPayload);
 }
 
-async function getPayPalAccessToken() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  const env = process.env.PAYPAL_ENV || "sandbox";
+function jsonResponse(body, status = 200) {
+  return new Response(
+    JSON.stringify(body),
+    {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store"
+      }
+    }
+  );
+}
 
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing PayPal credentials");
-  }
+function licenseResponse(license) {
+  return new Response(
+    JSON.stringify(license, null, 2),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition":
+          'attachment; filename="StemPlayer_V2.license"',
+        "Cache-Control": "no-store"
+      }
+    }
+  );
+}
 
-  const baseUrl =
-    env === "live"
-      ? "https://api-m.paypal.com"
-      : "https://api-m.sandbox.paypal.com";
+function createSignedLicense(captureId, privateKeyB64) {
+  const licensePayload = {
+    schema: 1,
+    product: "StemPlayer",
+    edition: "V2",
+    license_id:
+      "SPV2-" +
+      crypto.randomBytes(6)
+        .toString("hex")
+        .toUpperCase(),
+    purchase_ref: captureId,
+    issued_at: new Date().toISOString()
+  };
 
-  const basicAuth = Buffer.from(
-    `${clientId}:${clientSecret}`
-  ).toString("base64");
+  const canonical =
+    canonicalLicensePayload(licensePayload);
 
-  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials"
+  const privateKeyPemBytes =
+    Buffer.from(privateKeyB64, "base64");
+
+  const privateKey = crypto.createPrivateKey({
+    key: privateKeyPemBytes,
+    format: "pem"
   });
 
-  if (!response.ok) {
-    throw new Error(`PayPal OAuth failed: ${response.status}`);
-  }
-
-  const data = await response.json();
+  const signature = crypto.sign(
+    null,
+    Buffer.from(canonical, "utf8"),
+    privateKey
+  );
 
   return {
-    accessToken: data.access_token,
-    baseUrl
+    ...licensePayload,
+    signature: signature.toString("base64")
   };
 }
 
@@ -60,175 +90,258 @@ export default async (request) => {
     const orderId = url.searchParams.get("order_id");
 
     if (!orderId) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           ok: false,
           error: "Missing order_id"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
+        },
+        400
       );
     }
 
     const privateKeyB64 =
-    process.env.STEMPLAYER_V2_PRIVATE_KEY_B64;
+      process.env.STEMPLAYER_V2_PRIVATE_KEY_B64;
 
     if (!privateKeyB64) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           ok: false,
           error: "Missing StemPlayer signing key"
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" }
-        }
+        },
+        500
       );
     }
 
-    // 1. Verify payment directly with PayPal
-    const { accessToken, baseUrl } =
-      await getPayPalAccessToken();
-
-    const orderResponse = await fetch(
-      `${baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const orderData = await orderResponse.json();
-
-    if (!orderResponse.ok) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          paypal_status: orderResponse.status,
-          error: "Unable to verify PayPal order"
-        }),
-        {
-          status: 502,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    if (orderData.status !== "COMPLETED") {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Payment is not completed",
-          status: orderData.status
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    const capture =
-      orderData.purchase_units?.[0]
-        ?.payments?.captures?.[0];
-
-    if (!capture || capture.status !== "COMPLETED") {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Completed PayPal capture not found"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    if (
-      capture.amount?.currency_code !== "USD" ||
-      capture.amount?.value !== "5.00"
-    ) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Unexpected payment amount"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    // 2. Create license payload
-    const licensePayload = {
-      schema: 1,
-      product: "StemPlayer",
-      edition: "V2",
-      license_id:
-        "SPV2-" +
-        crypto.randomBytes(6)
-          .toString("hex")
-          .toUpperCase(),
-      purchase_ref: capture.id,
-      issued_at: new Date().toISOString()
-    };
-
-    // 3. Canonical JSON matching Python verifier
-    const canonical = canonicalLicensePayload(
-      licensePayload
-    );
-
-    // 4. Sign with Ed25519 private key
-    const privateKeyPemBytes =
-    Buffer.from(privateKeyB64, "base64");
-
-    const privateKey = crypto.createPrivateKey({
-    key: privateKeyPemBytes,
-    format: "pem"
+    const store = getStore({
+      name: "stemplayer-commerce",
+      consistency: "strong"
     });
 
-    const signature = crypto.sign(
-      null,
-      Buffer.from(canonical, "utf8"),
-      privateKey
+    /*
+     * STEP 1
+     * Read our authoritative commerce ledger.
+     *
+     * A license may only be issued for an order that has already
+     * completed the capture/accounting flow.
+     */
+    const initialState = await store.get(
+      "state.json",
+      {
+        type: "json",
+        consistency: "strong"
+      }
     );
 
-    // 5. Final V2 license
-    const license = {
-      ...licensePayload,
-      signature: signature.toString("base64")
-    };
+    if (!initialState) {
+      throw new Error("Commerce state not initialized");
+    }
 
-    return new Response(
-      JSON.stringify(license, null, 2),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Disposition":
-            'attachment; filename="StemPlayer_V2.license"',
-          "Cache-Control": "no-store"
-        }
+    const processedOrder =
+      initialState.processed_orders?.[orderId];
+
+    if (!processedOrder?.sold_counted) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: "Order has not completed StemPlayer payment processing"
+        },
+        409
+      );
+    }
+
+    /*
+     * STEP 2
+     * Idempotency fast path.
+     *
+     * If this order already owns a license, return exactly that
+     * license. Never generate another license ID/signature.
+     */
+    if (processedOrder.license) {
+      return licenseResponse(
+        processedOrder.license
+      );
+    }
+
+    const captureId =
+      processedOrder.capture_id;
+
+    const amount =
+      processedOrder.amount;
+
+    const currency =
+      processedOrder.currency;
+
+    const isEarlyBird =
+      Boolean(processedOrder.early_bird);
+
+    if (!captureId) {
+      throw new Error(
+        "Processed order is missing capture_id"
+      );
+    }
+
+    /*
+     * STEP 3
+     * Validate the recorded product/payment against commerce state.
+     *
+     * This supports BOTH:
+     *   Early Bird = $5.00
+     *   Standard   = $9.99
+     *
+     * No more hard-coded $5-only license issuance.
+     */
+    const expectedAmount = isEarlyBird
+      ? initialState.early_bird_price_usd
+      : initialState.regular_price_usd;
+
+    if (
+      currency !== "USD" ||
+      amount !== expectedAmount
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: "Processed payment amount does not match product price"
+        },
+        409
+      );
+    }
+
+    /*
+     * STEP 4
+     * Generate one candidate license.
+     *
+     * Under concurrency, more than one invocation might temporarily
+     * generate a candidate, but only ONE can win the CAS write.
+     * Losing invocations will read and return the winner's license.
+     */
+    const candidateLicense =
+      createSignedLicense(
+        captureId,
+        privateKeyB64
+      );
+
+    /*
+     * STEP 5
+     * Atomically attach the license to this PayPal order.
+     */
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result =
+        await store.getWithMetadata(
+          "state.json",
+          {
+            type: "json",
+            consistency: "strong"
+          }
+        );
+
+      if (!result?.data) {
+        throw new Error(
+          "Commerce state not initialized"
+        );
       }
+
+      const currentState = result.data;
+
+      const processedOrders = {
+        ...(currentState.processed_orders ?? {})
+      };
+
+      const currentOrder =
+        processedOrders[orderId];
+
+      if (!currentOrder?.sold_counted) {
+        throw new Error(
+          "Processed order disappeared before license issuance"
+        );
+      }
+
+      /*
+       * Another invocation may already have won the race.
+       * Return its license, not our candidate.
+       */
+      if (currentOrder.license) {
+        return licenseResponse(
+          currentOrder.license
+        );
+      }
+
+      /*
+       * Protect against ledger mutation/corruption between reads.
+       */
+      if (
+        currentOrder.capture_id !== captureId ||
+        currentOrder.amount !== amount ||
+        currentOrder.currency !== currency ||
+        Boolean(currentOrder.early_bird) !== isEarlyBird
+      ) {
+        throw new Error(
+          "Processed order changed during license issuance"
+        );
+      }
+
+      processedOrders[orderId] = {
+        ...currentOrder,
+        license: candidateLicense
+      };
+
+      const nextState = {
+        ...currentState,
+        processed_orders: processedOrders
+      };
+
+      const writeResult =
+        await store.setJSON(
+          "state.json",
+          nextState,
+          {
+            onlyIfMatch: result.etag
+          }
+        );
+
+      if (writeResult.modified) {
+        return licenseResponse(
+          candidateLicense
+        );
+      }
+    }
+
+    /*
+     * Rare final recovery read:
+     * another concurrent invocation may have written the license
+     * after our last CAS conflict.
+     */
+    const finalState = await store.get(
+      "state.json",
+      {
+        type: "json",
+        consistency: "strong"
+      }
+    );
+
+    const finalLicense =
+      finalState?.processed_orders?.[orderId]
+        ?.license;
+
+    if (finalLicense) {
+      return licenseResponse(finalLicense);
+    }
+
+    throw new Error(
+      "Unable to persist StemPlayer license"
     );
   } catch (error) {
-    console.error("License issuance failed:", error);
+    console.error(
+      "License issuance failed:",
+      error
+    );
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         ok: false,
         error: "License issuance failed"
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
+      },
+      500
     );
   }
 };
