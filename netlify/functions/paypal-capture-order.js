@@ -1,9 +1,19 @@
 import { getStore } from "@netlify/blobs";
 
-async function getAccessToken() {
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store"
+    }
+  });
+}
+
+async function getPayPalAccessToken() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  const env = process.env.PAYPAL_ENV || "sandbox";
+  const env = process.env.PAYPAL_ENV ?? "sandbox";
 
   if (!clientId || !clientSecret) {
     throw new Error("Missing PayPal credentials");
@@ -18,17 +28,23 @@ async function getAccessToken() {
     `${clientId}:${clientSecret}`
   ).toString("base64");
 
-  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials"
-  });
+  const response = await fetch(
+    `${baseUrl}/v1/oauth2/token`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type":
+          "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(`PayPal OAuth failed: ${response.status}`);
+    throw new Error(
+      `PayPal OAuth failed: ${response.status}`
+    );
   }
 
   const data = await response.json();
@@ -39,22 +55,288 @@ async function getAccessToken() {
   };
 }
 
-function jsonResponse(body, status = 200) {
-  return new Response(
-    JSON.stringify(body),
+async function fetchPayPalOrder(
+  baseUrl,
+  accessToken,
+  orderId
+) {
+  const response = await fetch(
+    `${baseUrl}/v2/checkout/orders/${orderId}`,
     {
-      status,
       headers: {
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json"
       }
     }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+
+    throw new Error(
+      `PayPal order lookup failed: ${response.status} ${text}`
+    );
+  }
+
+  return response.json();
+}
+
+function inspectOrder(orderData, state) {
+  const purchaseUnit =
+    orderData.purchase_units?.[0];
+
+  if (!purchaseUnit) {
+    throw new Error(
+      "PayPal order has no purchase unit"
+    );
+  }
+
+  const referenceId =
+    purchaseUnit.reference_id;
+
+  const orderAmount =
+    purchaseUnit.amount?.value;
+
+  const currency =
+    purchaseUnit.amount?.currency_code;
+
+  const reservationId =
+    purchaseUnit.custom_id ?? null;
+
+  const earlyBirdPrice =
+    state.early_bird_price_usd ?? "5.00";
+
+  const regularPrice =
+    state.regular_price_usd ?? "9.99";
+
+  let isEarlyBird;
+
+  if (
+    referenceId ===
+    "STEMPLAYER_V2_EARLY_BIRD"
+  ) {
+    isEarlyBird = true;
+  } else if (
+    referenceId ===
+    "STEMPLAYER_V2_STANDARD"
+  ) {
+    isEarlyBird = false;
+  } else {
+    throw new Error(
+      "Unexpected StemPlayer product reference"
+    );
+  }
+
+  const expectedAmount = isEarlyBird
+    ? earlyBirdPrice
+    : regularPrice;
+
+  if (
+    currency !== "USD" ||
+    orderAmount !== expectedAmount
+  ) {
+    throw new Error(
+      "Unexpected PayPal order amount"
+    );
+  }
+
+  return {
+    isEarlyBird,
+    reservationId,
+    amount: orderAmount,
+    currency
+  };
+}
+
+function extractCompletedCapture(orderData) {
+  const captures =
+    orderData.purchase_units?.[0]
+      ?.payments?.captures ?? [];
+
+  const capture = captures.find(
+    (item) => item.status === "COMPLETED"
+  );
+
+  if (!capture) {
+    return null;
+  }
+
+  return {
+    captureId: capture.id,
+    amount: capture.amount?.value,
+    currency: capture.amount?.currency_code
+  };
+}
+
+async function persistCompletedOrder({
+  store,
+  orderId,
+  captureId,
+  amount,
+  currency,
+  isEarlyBird,
+  reservationId
+}) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const result =
+      await store.getWithMetadata(
+        "state.json",
+        {
+          type: "json",
+          consistency: "strong"
+        }
+      );
+
+    if (!result?.data) {
+      throw new Error(
+        "Commerce state not initialized"
+      );
+    }
+
+    const state = result.data;
+
+    const processedOrders = {
+      ...(state.processed_orders ?? {})
+    };
+
+    const existing =
+      processedOrders[orderId];
+
+    /*
+     * Another invocation already completed
+     * accounting for this exact order.
+     */
+    if (existing?.sold_counted) {
+      if (
+        existing.capture_id !== captureId
+      ) {
+        throw new Error(
+          "Order ledger capture mismatch"
+        );
+      }
+
+      return {
+        alreadyProcessed: true,
+        record: existing
+      };
+    }
+
+    const reservations = {
+      ...(state.early_bird_reservations ?? {})
+    };
+
+    /*
+     * On reconciliation, reservation may already
+     * have expired or disappeared. Payment truth
+     * comes from PayPal COMPLETED status.
+     */
+    if (
+      isEarlyBird &&
+      reservationId &&
+      reservations[reservationId]
+    ) {
+      delete reservations[reservationId];
+    }
+
+    let sold =
+      Number(
+        state.early_bird_sold ??
+        state.early_bird_used ??
+        0
+      );
+
+    if (isEarlyBird) {
+      sold += 1;
+    }
+
+    const now = Date.now();
+
+    const activeReservations =
+      Object.fromEntries(
+        Object.entries(reservations).filter(
+          ([, reservation]) =>
+            Date.parse(
+              reservation.expires_at
+            ) > now
+        )
+      );
+
+    processedOrders[orderId] = {
+      capture_id: captureId,
+      amount,
+      currency,
+      early_bird: isEarlyBird,
+      sold_counted: true,
+      license:
+        existing?.license ?? null
+    };
+
+    const nextState = {
+      ...state,
+      early_bird_sold: sold,
+      early_bird_reserved:
+        Object.keys(
+          activeReservations
+        ).length,
+      early_bird_reservations:
+        activeReservations,
+      processed_orders:
+        processedOrders
+    };
+
+    const writeResult =
+      await store.setJSON(
+        "state.json",
+        nextState,
+        {
+          onlyIfMatch: result.etag
+        }
+      );
+
+    if (writeResult.modified) {
+      return {
+        alreadyProcessed: false,
+        record:
+          processedOrders[orderId]
+      };
+    }
+  }
+
+  /*
+   * Final recovery read in case another
+   * invocation won the last CAS race.
+   */
+  const finalState =
+    await store.get(
+      "state.json",
+      {
+        type: "json",
+        consistency: "strong"
+      }
+    );
+
+  const finalRecord =
+    finalState?.processed_orders?.[
+      orderId
+    ];
+
+  if (finalRecord?.sold_counted) {
+    return {
+      alreadyProcessed: true,
+      record: finalRecord
+    };
+  }
+
+  throw new Error(
+    "Unable to persist completed PayPal order"
   );
 }
 
 export default async (request) => {
   try {
     const url = new URL(request.url);
-    const orderId = url.searchParams.get("order_id");
+    const orderId =
+      url.searchParams.get("order_id");
 
     if (!orderId) {
       return jsonResponse(
@@ -72,242 +354,13 @@ export default async (request) => {
     });
 
     /*
-     * STEP 1
-     * Check our ledger BEFORE doing anything with PayPal.
+     * FAST IDEMPOTENCY PATH
      *
-     * If this order has already been processed, return the
-     * recorded result. Do not capture again and do not change sold.
+     * If our ledger already processed the order,
+     * do not even ask PayPal to capture again.
      */
-    const initialState = await store.get("state.json", {
-      type: "json",
-      consistency: "strong"
-    });
-
-    if (!initialState) {
-      throw new Error("Commerce state not initialized");
-    }
-
-    const alreadyProcessed =
-      initialState.processed_orders?.[orderId];
-
-    if (alreadyProcessed?.sold_counted) {
-      return jsonResponse({
-        ok: true,
-        order_id: orderId,
-        status: "COMPLETED",
-        capture_id: alreadyProcessed.capture_id || null,
-        amount: {
-          currency_code: alreadyProcessed.currency || "USD",
-          value: alreadyProcessed.amount || null
-        },
-        early_bird: Boolean(alreadyProcessed.early_bird),
-        idempotent: true
-      });
-    }
-
-    const { accessToken, baseUrl } = await getAccessToken();
-
-    /*
-     * STEP 2
-     * Read the PayPal order BEFORE capture.
-     * Never trust price/product/reservation data from the browser.
-     */
-    const orderResponse = await fetch(
-      `${baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const orderData = await orderResponse.json();
-
-    if (!orderResponse.ok) {
-      return jsonResponse(
-        {
-          ok: false,
-          paypal_status: orderResponse.status,
-          error: "Unable to read PayPal order",
-          details: orderData
-        },
-        502
-      );
-    }
-
-    const purchaseUnit = orderData.purchase_units?.[0];
-
-    const amount =
-      purchaseUnit?.amount?.value ?? null;
-
-    const currency =
-      purchaseUnit?.amount?.currency_code ?? null;
-
-    const referenceId =
-      purchaseUnit?.reference_id ?? null;
-
-    const reservationId =
-      purchaseUnit?.custom_id ?? null;
-
-    const isEarlyBird =
-      referenceId === "STEMPLAYER_V2_EARLY_BIRD";
-
-    const isStandard =
-      referenceId === "STEMPLAYER_V2_STANDARD";
-
-    if (!isEarlyBird && !isStandard) {
-      return jsonResponse(
-        {
-          ok: false,
-          error: "Unknown StemPlayer product"
-        },
-        400
-      );
-    }
-
-    /*
-     * STEP 3
-     * Verify authoritative price.
-     */
-    const expectedAmount = isEarlyBird
-      ? initialState.early_bird_price_usd
-      : initialState.regular_price_usd;
-
-    if (
-      currency !== "USD" ||
-      amount !== expectedAmount
-    ) {
-      return jsonResponse(
-        {
-          ok: false,
-          error: "PayPal order amount does not match current product price"
-        },
-        400
-      );
-    }
-
-    /*
-     * STEP 4
-     * Early Bird requires a live reservation.
-     */
-    if (isEarlyBird) {
-      if (!reservationId) {
-        return jsonResponse(
-          {
-            ok: false,
-            error: "Missing Early Bird reservation"
-          },
-          409
-        );
-      }
-
-      const reservation =
-        initialState.early_bird_reservations?.[reservationId];
-
-      if (!reservation) {
-        return jsonResponse(
-          {
-            ok: false,
-            error: "Early Bird reservation not found or already used"
-          },
-          409
-        );
-      }
-
-      const expiresAt =
-        Date.parse(reservation.expires_at);
-
-      if (
-        !Number.isFinite(expiresAt) ||
-        expiresAt <= Date.now()
-      ) {
-        return jsonResponse(
-          {
-            ok: false,
-            error: "Early Bird reservation expired"
-          },
-          409
-        );
-      }
-    }
-
-    /*
-     * STEP 5
-     * Capture PayPal.
-     */
-    const captureResponse = await fetch(
-      `${baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation"
-        },
-        body: "{}"
-      }
-    );
-
-    const captureData = await captureResponse.json();
-
-    if (!captureResponse.ok) {
-      return jsonResponse(
-        {
-          ok: false,
-          paypal_status: captureResponse.status,
-          error: "PayPal capture failed",
-          details: captureData
-        },
-        502
-      );
-    }
-
-    if (captureData.status !== "COMPLETED") {
-      return jsonResponse(
-        {
-          ok: false,
-          error: "PayPal capture did not complete",
-          status: captureData.status
-        },
-        502
-      );
-    }
-
-    const capture =
-      captureData.purchase_units?.[0]
-        ?.payments?.captures?.[0];
-
-    if (!capture || capture.status !== "COMPLETED") {
-      throw new Error("Completed capture missing from PayPal response");
-    }
-
-    const captureId = capture.id;
-    const capturedAmount = capture.amount?.value;
-    const capturedCurrency = capture.amount?.currency_code;
-
-    if (
-      capturedCurrency !== currency ||
-      capturedAmount !== amount
-    ) {
-      throw new Error("Captured amount does not match verified order");
-    }
-
-    /*
-     * STEP 6
-     * Atomically record the order in our ledger.
-     *
-     * For Early Bird, the SAME atomic write also:
-     *   - removes the reservation
-     *   - increments sold exactly once
-     *
-     * For Standard, sold is not changed.
-     */
-    let recorded = false;
-
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const result = await store.getWithMetadata(
+    const initialState =
+      await store.get(
         "state.json",
         {
           type: "json",
@@ -315,134 +368,338 @@ export default async (request) => {
         }
       );
 
-      if (!result?.data) {
-        throw new Error("Commerce state not initialized");
-      }
+    if (!initialState) {
+      throw new Error(
+        "Commerce state not initialized"
+      );
+    }
 
-      const currentState = result.data;
+    const alreadyProcessed =
+      initialState.processed_orders?.[
+        orderId
+      ];
 
-      const processedOrders = {
-        ...(currentState.processed_orders ?? {})
-      };
+    if (alreadyProcessed?.sold_counted) {
+      return jsonResponse({
+        ok: true,
+        order_id: orderId,
+        status: "COMPLETED",
+        capture_id:
+          alreadyProcessed.capture_id,
+        amount: {
+          currency_code:
+            alreadyProcessed.currency,
+          value:
+            alreadyProcessed.amount
+        },
+        early_bird: Boolean(
+          alreadyProcessed.early_bird
+        ),
+        idempotent: true
+      });
+    }
 
-      /*
-       * Another invocation may have completed the ledger write
-       * while this invocation was waiting.
-       */
-      if (processedOrders[orderId]?.sold_counted) {
-        const existing = processedOrders[orderId];
+    const {
+      accessToken,
+      baseUrl
+    } =
+      await getPayPalAccessToken();
 
-        return jsonResponse({
-          ok: true,
-          order_id: orderId,
-          status: "COMPLETED",
-          capture_id: existing.capture_id || captureId,
-          amount: {
-            currency_code: existing.currency || capturedCurrency,
-            value: existing.amount || capturedAmount
-          },
-          early_bird: Boolean(existing.early_bird),
-          idempotent: true
-        });
-      }
+    let orderData =
+      await fetchPayPalOrder(
+        baseUrl,
+        accessToken,
+        orderId
+      );
 
-      const reservations = {
-        ...(currentState.early_bird_reservations ?? {})
-      };
+    const product =
+      inspectOrder(
+        orderData,
+        initialState
+      );
 
-      if (isEarlyBird && !reservations[reservationId]) {
+    /*
+     * RECOVERY PATH
+     *
+     * PayPal may already have captured the money,
+     * while a previous Netlify invocation failed
+     * before writing the Blob ledger.
+     *
+     * In that case:
+     * - DO NOT capture again
+     * - DO NOT require a live reservation
+     * - reconcile PayPal truth into our ledger
+     */
+    if (orderData.status === "COMPLETED") {
+      const completedCapture =
+        extractCompletedCapture(
+          orderData
+        );
+
+      if (!completedCapture) {
         throw new Error(
-          "Captured Early Bird reservation disappeared before ledger write"
+          "PayPal order says COMPLETED but no completed capture exists"
         );
       }
 
-      if (isEarlyBird) {
-        delete reservations[reservationId];
+      if (
+        completedCapture.currency !==
+          product.currency ||
+        completedCapture.amount !==
+          product.amount
+      ) {
+        throw new Error(
+          "Completed capture amount does not match order"
+        );
       }
 
-      const sold =
-        currentState.early_bird_sold ??
-        currentState.early_bird_used ??
-        0;
+      const persisted =
+        await persistCompletedOrder({
+          store,
+          orderId,
+          captureId:
+            completedCapture.captureId,
+          amount:
+            completedCapture.amount,
+          currency:
+            completedCapture.currency,
+          isEarlyBird:
+            product.isEarlyBird,
+          reservationId:
+            product.reservationId
+        });
 
-      const now = Date.now();
+      return jsonResponse({
+        ok: true,
+        order_id: orderId,
+        status: "COMPLETED",
+        capture_id:
+          completedCapture.captureId,
+        amount: {
+          currency_code:
+            completedCapture.currency,
+          value:
+            completedCapture.amount
+        },
+        early_bird:
+          product.isEarlyBird,
+        idempotent:
+          persisted.alreadyProcessed,
+        reconciled: true
+      });
+    }
 
-      const activeReservations =
-        Object.fromEntries(
-          Object.entries(reservations).filter(
-            ([, item]) => {
-              const expiresAt =
-                Date.parse(item.expires_at);
+    /*
+     * NORMAL EARLY BIRD CAPTURE
+     *
+     * Before new money is captured, the original
+     * reservation MUST still be active.
+     */
+    if (product.isEarlyBird) {
+      if (!product.reservationId) {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              "Early Bird order is missing reservation"
+          },
+          409
+        );
+      }
 
-              return (
-                Number.isFinite(expiresAt) &&
-                expiresAt > now
-              );
-            }
-          )
+      const currentState =
+        await store.get(
+          "state.json",
+          {
+            type: "json",
+            consistency: "strong"
+          }
         );
 
-      processedOrders[orderId] = {
-        capture_id: captureId,
-        amount: capturedAmount,
-        currency: capturedCurrency,
-        early_bird: isEarlyBird,
-        sold_counted: true,
-        license: null
-      };
+      const reservation =
+        currentState
+          ?.early_bird_reservations?.[
+            product.reservationId
+          ];
 
-      const nextState = {
-        ...currentState,
-        early_bird_sold:
-          isEarlyBird ? sold + 1 : sold,
-        early_bird_reserved:
-          Object.keys(activeReservations).length,
-        early_bird_reservations:
-          activeReservations,
-        processed_orders: processedOrders
-      };
+      if (!reservation) {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              "Early Bird reservation is no longer active"
+          },
+          409
+        );
+      }
 
-      delete nextState.early_bird_used;
+      if (
+        Date.parse(
+          reservation.expires_at
+        ) <= Date.now()
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              "Early Bird reservation has expired"
+          },
+          409
+        );
+      }
+    }
 
-      const writeResult = await store.setJSON(
-        "state.json",
-        nextState,
+    if (
+      orderData.status !== "APPROVED"
+    ) {
+      return jsonResponse(
         {
-          onlyIfMatch: result.etag
+          ok: false,
+          error:
+            `PayPal order is not approved: ${orderData.status}`
+        },
+        409
+      );
+    }
+
+    /*
+     * NORMAL CAPTURE
+     */
+    const captureResponse =
+      await fetch(
+        `${baseUrl}/v2/checkout/orders/${orderId}/capture`,
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+            "Content-Type":
+              "application/json"
+          }
         }
       );
 
-      if (writeResult.modified) {
-        recorded = true;
-        break;
+    /*
+     * CONCURRENT/FAILURE RECOVERY
+     *
+     * If capture request itself reports failure,
+     * another invocation may have captured it
+     * milliseconds earlier.
+     *
+     * Re-read PayPal before declaring failure.
+     */
+    if (!captureResponse.ok) {
+      orderData =
+        await fetchPayPalOrder(
+          baseUrl,
+          accessToken,
+          orderId
+        );
+
+      if (
+        orderData.status !== "COMPLETED"
+      ) {
+        const text =
+          await captureResponse.text();
+
+        throw new Error(
+          `PayPal capture failed: ${captureResponse.status} ${text}`
+        );
       }
+    } else {
+      /*
+       * Capture response was successful.
+       * Re-read authoritative PayPal order so
+       * both normal and recovery flows use
+       * exactly the same validation logic.
+       */
+      orderData =
+        await fetchPayPalOrder(
+          baseUrl,
+          accessToken,
+          orderId
+        );
     }
 
-    if (!recorded) {
+    if (
+      orderData.status !== "COMPLETED"
+    ) {
       throw new Error(
-        "Unable to record completed PayPal order"
+        `Unexpected PayPal status after capture: ${orderData.status}`
       );
     }
 
+    const completedCapture =
+      extractCompletedCapture(
+        orderData
+      );
+
+    if (!completedCapture) {
+      throw new Error(
+        "No completed capture found after PayPal capture"
+      );
+    }
+
+    if (
+      completedCapture.currency !==
+        product.currency ||
+      completedCapture.amount !==
+        product.amount
+    ) {
+      throw new Error(
+        "Captured amount does not match order"
+      );
+    }
+
+    /*
+     * Atomically record payment accounting.
+     * CAS prevents double sold-counting.
+     */
+    const persisted =
+      await persistCompletedOrder({
+        store,
+        orderId,
+        captureId:
+          completedCapture.captureId,
+        amount:
+          completedCapture.amount,
+        currency:
+          completedCapture.currency,
+        isEarlyBird:
+          product.isEarlyBird,
+        reservationId:
+          product.reservationId
+      });
+
     return jsonResponse({
       ok: true,
-      order_id: captureData.id,
-      status: captureData.status,
-      capture_id: captureId,
+      order_id: orderId,
+      status: "COMPLETED",
+      capture_id:
+        completedCapture.captureId,
       amount: {
-        currency_code: capturedCurrency,
-        value: capturedAmount
+        currency_code:
+          completedCapture.currency,
+        value:
+          completedCapture.amount
       },
-      early_bird: isEarlyBird,
-      idempotent: false
+      early_bird:
+        product.isEarlyBird,
+      idempotent:
+        persisted.alreadyProcessed,
+      reconciled: false
     });
   } catch (error) {
-    console.error("paypal-capture-order failed:", error);
+    console.error(
+      "PayPal capture failed:",
+      error
+    );
 
     return jsonResponse(
       {
         ok: false,
-        error: "Unexpected server error"
+        error:
+          "PayPal capture failed"
       },
       500
     );
