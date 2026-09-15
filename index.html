@@ -274,7 +274,7 @@
         <details><summary>Does StemPlayer separate songs into stems?</summary><p>No. StemPlayer works with stems you have already separated. The recommended V2 workflow is a 4-stem setup such as htdemucs plus the original full mix as the Reference track.</p></details>
         <details><summary>Is StemPlayer a DAW?</summary><p>No. StemPlayer is a focused music practice tool.</p></details>
         <details><summary>Does StemPlayer teach guitar, bass, drums, or vocals?</summary><p>No. StemPlayer helps you practice. It doesn't teach you.</p></details>
-        <details><summary>Is V2 a subscription?</summary><p>No. StemPlayer V2 is $5 one-time.</p></details>
+        <details><summary>Is V2 a subscription?</summary><p>No. StemPlayer V2 is a one-time purchase. Early Bird is $5 for the first 30 customers; regular price is $9.99.</p></details>
         <details><summary>What operating system does it support?</summary><p>StemPlayer V2 currently supports Windows.</p></details>
         <details><summary>What happens after I buy V2?</summary><p>Your payment is verified before you receive V2 installer/download instructions and your individual StemPlayer V2 license.</p></details>
         <details><summary>Can I share Presets and Practice Sessions?</summary><p>Yes. Preset and Session files are designed to be portable. Each V2 user still needs their own valid product license.</p></details>
@@ -306,22 +306,158 @@
   </footer>
 
   <script>
-    // RELEASE CONFIGURATION
-    // Paste the live PayPal Payment Link between the quotes before public launch.
-    const PAYPAL_V2_URL = "https://www.paypal.com/ncp/payment/RQJZH3FUZVJTN";
+    const COMMERCE_STATUS_URL =
+       "/.netlify/functions/commerce-status";
 
-    document.querySelectorAll('.buy-v2').forEach((button) => {
-      if (PAYPAL_V2_URL) {
-        button.href = PAYPAL_V2_URL;
-        button.target = '_blank';
-        button.rel = 'noopener';
-      } else {
-        button.addEventListener('click', (event) => {
-          event.preventDefault();
-          alert('V2 checkout is being connected for release. Please check back shortly.');
+    const CREATE_ORDER_URL =
+      "/.netlify/functions/paypal-create-order";
+
+    const buyButtons =
+      document.querySelectorAll(".buy-v2");
+
+    const priceHeading =
+      document.getElementById("v2-price-heading");
+
+    const earlyBirdMessage =
+      document.getElementById("early-bird-message");
+
+
+    function setBuyButtonText(price) {
+      buyButtons.forEach((button) => {
+        button.textContent =
+          `Get V2 — $${price} one-time`;
+      });
+    }
+
+
+    async function loadCommerceStatus() {
+      try {
+        const response = await fetch(
+          COMMERCE_STATUS_URL,
+          { cache: "no-store" }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(
+            "Unable to load commerce status"
+          );
+        }
+
+        const currentPrice =
+          data.pricing.current_usd;
+
+        setBuyButtonText(currentPrice);
+
+        if (data.early_bird.active) {
+          priceHeading.textContent =
+            `V2 — $${currentPrice} Early Bird`;
+
+          earlyBirdMessage.textContent =
+            `Early Bird: $${data.pricing.early_bird_usd} one-time for the first ${data.early_bird.limit} customers · ${data.early_bird.remaining} spots remaining · Regular price $${data.pricing.regular_usd}.`;
+        } else {
+          priceHeading.textContent =
+            `V2 — $${data.pricing.regular_usd} one-time`;
+
+          earlyBirdMessage.textContent =
+            `Regular price: $${data.pricing.regular_usd} one-time · No subscription.`;
+        }
+
+      } catch (error) {
+        console.error(
+          "Unable to load StemPlayer pricing:",
+          error
+        );
+
+        // Safe fallback:
+        // Do not advertise the discounted price
+        // if live commerce status cannot be verified.
+        setBuyButtonText("9.99");
+
+        priceHeading.textContent =
+          "V2 — $9.99 one-time";
+
+        earlyBirdMessage.textContent =
+          "Regular price: $9.99 one-time · No subscription.";
+      }
+    }
+
+
+    async function startCheckout(button) {
+      const originalText = button.textContent;
+
+      try {
+        buyButtons.forEach((item) => {
+          item.style.pointerEvents = "none";
+          item.style.opacity = "0.65";
+        });
+
+        button.textContent =
+          "Opening secure checkout...";
+
+        const response = await fetch(
+          CREATE_ORDER_URL,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        const data = await response.json();
+
+        if (
+          !response.ok ||
+          !data.ok ||
+          !data.approval_url
+        ) {
+          throw new Error(
+            data.error ||
+            "Unable to create PayPal order"
+          );
+        }
+
+        // The backend is authoritative.
+        // It decides whether this order receives
+        // Early Bird $5 or Standard $9.99.
+        window.location.href = data.approval_url;
+
+      } catch (error) {
+        console.error(
+          "StemPlayer checkout failed:",
+          error
+        );
+
+        alert(
+          "Unable to start checkout right now. Please try again."
+        );
+
+        button.textContent = originalText;
+
+        buyButtons.forEach((item) => {
+          item.style.pointerEvents = "";
+          item.style.opacity = "";
         });
       }
+    }
+
+
+    buyButtons.forEach((button) => {
+      button.href = "#";
+
+      button.addEventListener(
+        "click",
+        async (event) => {
+          event.preventDefault();
+          await startCheckout(button);
+        }
+      );
     });
+
+
+    loadCommerceStatus();
   </script>
 </body>
 </html>
