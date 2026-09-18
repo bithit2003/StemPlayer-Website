@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+
+  <meta name="theme-color" content="#111318" />
+
+  <title>
+    Thank You — StemPlayer V2
+  </title>
+
+  <style>
+    :root {
+      --bg: #0d0f13;
+      --surface: #151922;
+      --text: #f4f7fb;
+      --muted: #a9b2c3;
+      --line: rgba(255,255,255,.1);
+      --accent: #f0b44d;
+      --accent-2: #ffd98c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 32px 20px;
+
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      color: var(--text);
+
+      background:
+        radial-gradient(
+          circle at 20% -10%,
+          rgba(240,180,77,.12),
+          transparent 34rem
+        ),
+        linear-gradient(
+          180deg,
+          #0b0d11 0%,
+          #10131a 48%,
+          #0b0d11 100%
+        );
+    }
+
+    .card {
+      width: min(680px, 100%);
+
+      padding: 48px 36px;
+
+      text-align: center;
+
+      border:
+        1px solid var(--line);
+
+      border-radius: 24px;
+
+      background:
+        rgba(255,255,255,.035);
+    }
+
+    .brand {
+      color: var(--accent-2);
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: .82rem;
+    }
+
+    h1 {
+      margin: 16px 0 12px;
+
+      font-size:
+        clamp(2rem, 6vw, 3.4rem);
+
+      line-height: 1.05;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .status {
+      margin: 28px 0;
+      min-height: 26px;
+      color: var(--accent-2);
+      font-weight: 700;
+    }
+
+    .actions {
+      display: none;
+
+      margin-top: 30px;
+
+      gap: 12px;
+
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      display: inline-flex;
+
+      align-items: center;
+      justify-content: center;
+
+      min-height: 48px;
+
+      padding: 0 22px;
+
+      border-radius: 999px;
+
+      border:
+        1px solid var(--line);
+
+      text-decoration: none;
+
+      font-weight: 750;
+
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #17120a;
+      border-color: transparent;
+    }
+
+    .btn-secondary {
+      background:
+        rgba(255,255,255,.04);
+
+      color: var(--text);
+    }
+
+    .note {
+      display: none;
+
+      margin-top: 24px;
+
+      font-size: .9rem;
+      color: var(--muted);
+    }
+
+    .error {
+      color: #ff9f9f;
+    }
+
+    @media (max-width: 600px) {
+      .card {
+        padding: 38px 22px;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="card">
+
+    <div class="brand">
+      StemPlayer V2
+    </div>
+
+    <h1 id="title">
+      Completing your purchase...
+    </h1>
+
+    <p id="message">
+      Please wait while StemPlayer confirms
+      your PayPal payment and prepares your
+      license.
+    </p>
+
+    <div
+      id="status"
+      class="status"
+    >
+      Confirming payment...
+    </div>
+
+    <div
+      id="actions"
+      class="actions"
+    >
+      <a
+        id="download-installer"
+        class="btn btn-primary"
+        href="#"
+      >
+        Download StemPlayer V2
+      </a>
+
+      <a
+        id="download-license"
+        class="btn btn-secondary"
+        href="#"
+        download="StemPlayer_V2.license"
+      >
+        Download License
+      </a>
+    </div>
+
+    <p
+      id="note"
+      class="note"
+    >
+      Keep your license file in a safe place.
+      The installer download link is temporary
+      and expires after 5 minutes.
+    </p>
+
+  </main>
+
+
+  <script>
+
+    const CAPTURE_URL =
+      "/.netlify/functions/paypal-capture-order";
+
+    const LICENSE_URL =
+      "/.netlify/functions/paypal-issue-license";
+
+    const DOWNLOAD_URL =
+      "/.netlify/functions/r2-download";
+
+
+    const title =
+      document.getElementById("title");
+
+    const message =
+      document.getElementById("message");
+
+    const status =
+      document.getElementById("status");
+
+    const actions =
+      document.getElementById("actions");
+
+    const note =
+      document.getElementById("note");
+
+    const installerButton =
+      document.getElementById(
+        "download-installer"
+      );
+
+    const licenseButton =
+      document.getElementById(
+        "download-license"
+      );
+
+
+    function showError(text) {
+
+      title.textContent =
+        "We couldn't complete your purchase.";
+
+      message.textContent =
+        "Your payment has not been treated as a completed StemPlayer purchase.";
+
+      status.textContent = text;
+      status.classList.add("error");
+
+      actions.style.display = "none";
+      note.style.display = "none";
+    }
+
+
+    async function completePurchase() {
+
+      const params =
+        new URLSearchParams(
+          window.location.search
+        );
+
+      /*
+       * PayPal returns the order ID as "token".
+       */
+      const orderId =
+        params.get("token");
+
+      if (!orderId) {
+        showError(
+          "Missing PayPal order information."
+        );
+        return;
+      }
+
+
+      try {
+
+        /*
+         * STEP 1
+         * Capture / reconcile PayPal payment.
+         */
+        status.textContent =
+          "Confirming PayPal payment...";
+
+        const captureResponse =
+          await fetch(
+            `${CAPTURE_URL}?order_id=${encodeURIComponent(orderId)}`
+          );
+
+        const captureData =
+          await captureResponse.json();
+
+        if (
+          !captureResponse.ok ||
+          !captureData.ok ||
+          captureData.status !== "COMPLETED"
+        ) {
+          throw new Error(
+            captureData.error ||
+            "Payment confirmation failed."
+          );
+        }
+
+
+        /*
+         * STEP 2
+         * Issue or retrieve this order's
+         * signed StemPlayer V2 license.
+         *
+         * This endpoint returns the actual
+         * license file as JSON attachment.
+         */
+        status.textContent =
+          "Preparing your StemPlayer license...";
+
+        const licenseResponse =
+          await fetch(
+            `${LICENSE_URL}?order_id=${encodeURIComponent(orderId)}`
+          );
+
+        if (!licenseResponse.ok) {
+
+          let errorText =
+            "License creation failed.";
+
+          try {
+            const errorData =
+              await licenseResponse.json();
+
+            if (errorData.error) {
+              errorText =
+                errorData.error;
+            }
+          } catch {
+            // Keep generic message.
+          }
+
+          throw new Error(errorText);
+        }
+
+
+        const licenseBlob =
+          await licenseResponse.blob();
+
+        const licenseObjectUrl =
+          URL.createObjectURL(
+            licenseBlob
+          );
+
+        licenseButton.href =
+          licenseObjectUrl;
+
+
+        /*
+         * STEP 3
+         * Ask the protected R2 gate for
+         * a short-lived installer URL.
+         *
+         * r2-download will independently
+         * verify:
+         * - sold_counted
+         * - license exists
+         */
+        status.textContent =
+          "Preparing your secure download...";
+
+        const downloadResponse =
+          await fetch(
+            `${DOWNLOAD_URL}?order_id=${encodeURIComponent(orderId)}`
+          );
+
+        const downloadData =
+          await downloadResponse.json();
+
+        if (
+          !downloadResponse.ok ||
+          !downloadData.ok ||
+          !downloadData.download_url
+        ) {
+          throw new Error(
+            downloadData.error ||
+            "Installer download could not be prepared."
+          );
+        }
+
+
+        /*
+         * SUCCESS
+         */
+        installerButton.href =
+          downloadData.download_url;
+
+        title.textContent =
+          "Thank you for purchasing StemPlayer V2!";
+
+        message.textContent =
+          "Your payment has been confirmed and your StemPlayer V2 license is ready.";
+
+        status.textContent =
+          "Your purchase is complete.";
+
+        status.classList.remove(
+          "error"
+        );
+
+        actions.style.display =
+          "flex";
+
+        note.style.display =
+          "block";
+
+
+        /*
+         * Remove PayPal identifiers from the
+         * visible browser URL after processing.
+         *
+         * Refreshing the page remains safe
+         * because capture + license endpoints
+         * are idempotent, but we avoid leaving
+         * the PayPal query string visible.
+         */
+        window.history.replaceState(
+          {},
+          document.title,
+          "/thank-you.html"
+        );
+
+      } catch (error) {
+
+        console.error(
+          "StemPlayer post-purchase flow failed:",
+          error
+        );
+
+        showError(
+          error.message ||
+          "Unable to complete purchase."
+        );
+      }
+    }
+
+
+    completePurchase();
+
+  </script>
+
+</body>
+</html>

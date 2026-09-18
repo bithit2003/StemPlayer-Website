@@ -185,12 +185,16 @@ export default async () => {
             }
         }
         ],
-          application_context: {
-            brand_name: "StemPlayer",
-            landing_page: "NO_PREFERENCE",
-            user_action: "PAY_NOW",
-            shipping_preference: "NO_SHIPPING"
-          }
+        application_context: {
+          brand_name: "StemPlayer",
+          landing_page: "NO_PREFERENCE",
+          user_action: "PAY_NOW",
+          shipping_preference: "NO_SHIPPING",
+          return_url:
+            "https://stemplayer-app.netlify.app/thank-you.html",
+          cancel_url:
+            "https://stemplayer-app.netlify.app/"
+        }
         })
       }
     );
