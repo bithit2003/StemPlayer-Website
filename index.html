@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="StemPlayer is a focused Windows practice tool for musicians working with separated stems. Slow down, loop, remix, transpose, save, and continue tomorrow." />
+  <meta name="description" content="StemPlayer V3 turns separated stems into custom backing tracks for practice and performance. Choose your stems, shape each track with EQ, and export the mix as WAV." />
   <meta name="theme-color" content="#111318" />
-  <title>StemPlayer V2 — Practice the song your way.</title>
+  <title>StemPlayer V3 — Choose what you play. Export the rest.</title>
   <style>
     :root {
       --bg: #0d0f13;
@@ -112,6 +112,43 @@
     .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
     .footer-links a { color: var(--muted); }
     .notice { margin-top: 18px; color: #d4b36f; font-size: .88rem; }
+    .v3-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 7px 12px; border-radius: 999px;
+      border: 1px solid rgba(240,180,77,.35);
+      background: rgba(240,180,77,.08);
+      color: var(--accent-2); font-weight: 800; font-size: .82rem;
+      letter-spacing: .04em;
+    }
+    .v3-shot {
+      margin-top: 34px; padding: 10px; border: 1px solid var(--line);
+      border-radius: 26px; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+    }
+    .v3-shot img { width: 100%; border-radius: 17px; }
+    .v3-feature { position: relative; overflow: hidden; }
+    .v3-feature::after {
+      content: ""; position: absolute; inset: auto -35px -45px auto;
+      width: 130px; height: 130px; border-radius: 50%;
+      background: rgba(240,180,77,.06); pointer-events: none;
+    }
+    .v3-feature .num { font-size: .78rem; letter-spacing: .08em; }
+    .v3-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 30px; }
+    .v3-gallery figure {
+      margin: 0; padding: 10px; border: 1px solid var(--line);
+      border-radius: var(--radius); background: rgba(255,255,255,.03);
+    }
+    .v3-gallery img { width: 100%; border-radius: 14px; }
+    .v3-gallery figcaption { color: var(--muted); font-size: .9rem; padding: 10px 6px 3px; }
+    .version-card {
+      max-width: 820px; margin: 0 auto; padding: 30px;
+      border: 1px solid rgba(240,180,77,.38); border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(240,180,77,.10), rgba(255,255,255,.025));
+      text-align: center;
+    }
+    .version-card h3 { font-size: 1.55rem; margin: 10px 0; }
+    .version-card p { color: var(--muted); margin: 0 auto; max-width: 660px; }
+    .version-note { color: var(--muted); font-size: .9rem; margin-top: 16px; }
     @media (max-width: 860px) {
       .nav-links a:not(.btn) { display: none; }
       .grid { grid-template-columns: 1fr 1fr; }
@@ -125,6 +162,7 @@
       .hero { padding-top: 70px; }
       section { padding: 62px 0; }
       .grid { grid-template-columns: 1fr; }
+      .v3-gallery { grid-template-columns: 1fr; }
       .hero-actions .btn, .pricing-actions .btn { width: 100%; }
       .footer-inner { align-items: flex-start; }
     }
@@ -133,11 +171,12 @@
 <body>
   <nav class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="#top">StemPlayer <span>V2</span></a>
+      <a class="brand" href="#top">StemPlayer <span>V3</span></a>
       <div class="nav-links">
+        <a href="#v3">V3</a>
         <a href="#how">How it works</a>
-        <a href="#features">Features</a>
-        <a href="#pricing">V1 vs V2</a>
+        <a href="#features">V2</a>
+        <a href="#pricing">Versions</a>
         <a class="btn btn-primary btn-small buy-v2" href="#">Get V2 — $5</a>
       </div>
     </div>
@@ -146,25 +185,77 @@
   <main id="top">
     <header class="hero">
       <div class="wrap">
-        <div class="eyebrow">Windows practice tool for musicians</div>
-        <h1>Practice the song your way.</h1>
-        <p>Turn separated stems into a practice session you can slow down, loop, remix, transpose, save, and continue tomorrow.</p>
+        <div class="eyebrow">StemPlayer V3 · Windows backing-track workspace</div>
+        <h1>Choose what you play.<br>Export the rest.</h1>
+        <p>Turn separated stems into a custom backing track for practice or performance. Add the parts you need, shape each track, then export the mix as WAV.</p>
         <div class="hero-actions">
+          <a class="btn btn-primary" href="#v3">Explore V3</a>
+          <a class="btn btn-secondary buy-v2" href="#">Get V2 — $5 one-time</a>
           <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
-          <a class="btn btn-primary buy-v2" href="#">Get V2 — $5 one-time</a>
         </div>
-        <div class="micro">Windows desktop app · One-time purchase · No subscription</div>
+        <div class="micro">Windows desktop app · V3 product preview · V2 available now</div>
         <div class="product-shot">
-          <img src="assets/stemplayer-v2-main.png" alt="StemPlayer V2 main interface" />
+          <img src="assets/stemplayer-v3-main.png" alt="StemPlayer V3 with dynamic stem tracks, per-track EQ and Export Backing Track" />
         </div>
       </div>
     </header>
 
+    <section id="v3">
+      <div class="wrap">
+        <div class="section-head center">
+          <div class="v3-badge">V3 · Backing Track Workflow</div>
+          <h2>From separated stems to your own backing track.</h2>
+          <p class="lead">StemPlayer does not separate the song. Bring stems from tools such as UVR or MVSEP, choose the parts you want around you, mix them, and export the result.</p>
+        </div>
+
+        <div class="flow">
+          <b>Song</b> → <b>UVR / MVSEP</b> → <b>Stems</b> → <b>StemPlayer V3</b> → <b>Choose & Mix</b> → <b>Export WAV</b> → <b>Practice / Perform</b>
+        </div>
+
+        <div class="grid" style="margin-top:34px">
+          <div class="card v3-feature">
+            <div class="num">V3 · 01</div>
+            <h3>Dynamic Stem Slots</h3>
+            <p>Add the stems your separation gives you — lead vocal, back vocal, lead guitar, rhythm guitar, piano, instruments, and more. You are no longer limited to the original fixed five-track layout.</p>
+          </div>
+          <div class="card v3-feature">
+            <div class="num">V3 · 02</div>
+            <h3>Per-track EQ</h3>
+            <p>Shape individual stems with Low, Mid, and High controls so each part sits where you want it in the backing mix.</p>
+          </div>
+          <div class="card v3-feature">
+            <div class="num">V3 · 03</div>
+            <h3>Export Backing Track</h3>
+            <p>Export the current stem mix as a WAV backing track. Your Reference track stays out of the exported mix.</p>
+          </div>
+        </div>
+
+        <div class="v3-gallery">
+          <figure>
+            <img src="assets/Before export.png" alt="StemPlayer V3 mix prepared with selected stems muted before export" />
+            <figcaption>Choose the parts: keep what you want in the backing track and mute what you plan to play or sing yourself.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/Render EQ.png" alt="StemPlayer V3 rendering per-track EQ" />
+            <figcaption>Shape the mix: Low, Mid, and High EQ can be adjusted per track before export.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/Export.png" alt="StemPlayer V3 Export Backing Track WAV dialog" />
+            <figcaption>Export it: save the prepared mix as a WAV backing track.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/After export.png" alt="Exported WAV backing track created by StemPlayer V3" />
+            <figcaption>Use it anywhere: the exported WAV is ready for practice or performance.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <section>
       <div class="wrap">
         <div class="section-head center">
-          <div class="eyebrow">Demo</div>
-          <h2>See StemPlayer in action.</h2>
+          <div class="eyebrow">V2 Demo</div>
+          <h2>See the V2 practice workflow in action.</h2>
           <div class="flow"><b>Open</b> → <b>Adjust</b> → <b>Loop</b> → <b>Practice</b> → <b>Save</b> → <b>Continue</b></div>
         </div>
         <div class="demo-frame">
@@ -178,7 +269,7 @@
 
     <section>
       <div class="wrap">
-        <div class="section-head"><div class="eyebrow">Why StemPlayer?</div><h2>Turn a song into your practice session.</h2></div>
+        <div class="section-head"><div class="eyebrow">StemPlayer V2</div><h2>Turn a song into your practice session.</h2></div>
         <div class="story">
           Sometimes you don't need another lesson. You need to hear less guitar. Remove the vocals. Solo the bass. Slow down a difficult passage. Loop it until you get it right. Change the key. Then come back tomorrow and continue where you left off.
           <p><strong>StemPlayer helps you practice. It doesn't teach you.</strong></p>
@@ -188,7 +279,7 @@
 
     <section id="how">
       <div class="wrap">
-        <div class="section-head"><div class="eyebrow">How it works</div><h2>A simple practice workflow.</h2><p class="lead">Built for the part after stem separation and before performance or recording.</p></div>
+        <div class="section-head"><div class="eyebrow">V2 practice workflow</div><h2>A simple practice workflow.</h2><p class="lead">Built for the part after stem separation and before performance or recording.</p></div>
         <div class="grid">
           <div class="card"><div class="num">01</div><h3>Open your song</h3><p>Load separated stems and keep the original full mix as your Reference track.</p></div>
           <div class="card"><div class="num">02</div><h3>Build your practice mix</h3><p>Adjust volume, Mute, or Solo individual parts.</p></div>
@@ -220,19 +311,28 @@
         <div class="chain">
           <div class="step"><strong>Separate</strong><br><span class="lead">Moises / UVR / Demucs</span></div>
           <div class="arrow">→</div>
-          <div class="step active"><strong>Practice & prepare</strong><br><span class="lead">StemPlayer</span></div>
+          <div class="step active"><strong>Practice & prepare</strong><br><span class="lead">StemPlayer V2 / V3</span></div>
           <div class="arrow">→</div>
           <div class="step"><strong>Perform / Record</strong><br><span class="lead">Your instrument / DAW</span></div>
           <div class="arrow">→</div>
           <div class="step"><strong>Release</strong><br><span class="lead">Distribution / streaming</span></div>
         </div>
-        <p class="lead" style="text-align:center;margin-top:24px">StemPlayer doesn't replace stem separation, a DAW, or a music teacher. It fills the focused practice step in between.</p>
+        <p class="lead" style="text-align:center;margin-top:24px">StemPlayer doesn't replace stem separation, a DAW, or a music teacher. V2 focuses on stem-based practice; V3 extends that workflow into backing-track preparation and WAV export.</p>
       </div>
     </section>
 
     <section id="pricing">
       <div class="wrap">
-        <div class="section-head center"><div class="eyebrow">Choose your version</div><h2>Start free. Upgrade when you need more.</h2></div>
+        <div class="section-head center"><div class="eyebrow">Choose your version</div><h2>Start free. Practice deeper with V2. Build backing tracks with V3.</h2><p class="lead">V1 is free. V2 is available now at the live price shown below. V3 is a product preview and is not yet for sale.</p></div>
+        <div class="version-card" style="margin-bottom:28px">
+          <div class="v3-badge">StemPlayer V3</div>
+          <h3>Choose what you play. Export the rest.</h3>
+          <p>Dynamic Stem Slots · Per-track EQ · Export Backing Track.</p>
+          <div class="version-note">V3 pricing will be announced with the commercial release.</div>
+        </div>
+        <div style="text-align:center;margin:0 0 16px">
+          <div class="v3-badge" style="border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.035);color:var(--text)">StemPlayer V2 · Available now</div>
+        </div>
         <div style="overflow-x:auto;border-radius:22px;border:1px solid var(--line)">
           <table class="compare">
             <thead><tr><th>Feature</th><th>V1 — Free</th><th id="v2-price-heading">V2 — $5 Early Bird</th></tr></thead>
@@ -279,6 +379,8 @@
     <section>
       <div class="wrap">
         <div class="section-head"><div class="eyebrow">FAQ</div><h2>Good to know.</h2></div>
+        <details><summary>What is new in StemPlayer V3?</summary><p>V3 adds Dynamic Stem Slots, per-track Low/Mid/High EQ, and Export Backing Track. It keeps the practice workflow while adding a way to prepare a custom WAV backing track from your stems.</p></details>
+        <details><summary>Is StemPlayer V3 available to purchase yet?</summary><p>Not yet. V3 pricing will be announced with the commercial release. StemPlayer V2 is available to purchase now.</p></details>
         <details><summary>Does StemPlayer separate songs into stems?</summary><p>No. StemPlayer works with stems you have already separated. The recommended V2 workflow is a 4-stem setup such as htdemucs plus the original full mix as the Reference track.</p></details>
         <details><summary>Is StemPlayer a DAW?</summary><p>No. StemPlayer is a focused music practice tool.</p></details>
         <details><summary>Does StemPlayer teach guitar, bass, drums, or vocals?</summary><p>No. StemPlayer helps you practice. It doesn't teach you.</p></details>
@@ -291,14 +393,15 @@
 
     <section class="final">
       <div class="wrap">
-        <div class="eyebrow">StemPlayer V2</div>
-        <h2>Your song. Your instrument. Your practice session.</h2>
-        <p class="lead">Practice the song your way.</p>
+        <div class="eyebrow">StemPlayer V3</div>
+        <h2>Choose what you play. Export the rest.</h2>
+        <p class="lead">Build the backing track you actually want to practice or perform with.</p>
         <div class="pricing-actions">
+          <a class="btn btn-primary" href="#v3">Explore V3</a>
+          <a class="btn btn-secondary buy-v2" href="#">Get StemPlayer V2 — $5</a>
           <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
-          <a class="btn btn-primary buy-v2" href="#">Get StemPlayer V2 — $5</a>
         </div>
-        <div class="micro">Windows · One-time purchase · No subscription</div>
+        <div class="micro">Windows · V2 available now · V3 pricing will be announced with the commercial release</div>
       </div>
     </section>
   </main>
@@ -363,13 +466,13 @@
             `V2 — $${currentPrice} Early Bird`;
 
           earlyBirdMessage.textContent =
-            `Early Bird: $${data.pricing.early_bird_usd} one-time for the first ${data.early_bird.limit} customers · ${data.early_bird.remaining} spots remaining · Regular price $${data.pricing.regular_usd}.`;
+            `Current V2 price: $${currentPrice} one-time · Early Bird for the first ${data.early_bird.limit} customers · ${data.early_bird.remaining} spots remaining · Regular V2 price: $${data.pricing.regular_usd}.`;
         } else {
           priceHeading.textContent =
             `V2 — $${data.pricing.regular_usd} one-time`;
 
           earlyBirdMessage.textContent =
-            `Regular price: $${data.pricing.regular_usd} one-time · No subscription.`;
+            `Current V2 price: $${data.pricing.regular_usd} one-time · Early Bird has ended · No subscription.`;
         }
 
       } catch (error) {
@@ -387,7 +490,7 @@
           "V2 — $9.99 one-time";
 
         earlyBirdMessage.textContent =
-          "Regular price: $9.99 one-time · No subscription.";
+          "Live Early Bird availability could not be verified. V2 regular price: $9.99 one-time · No subscription.";
       }
     }
 
