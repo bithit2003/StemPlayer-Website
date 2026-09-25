@@ -193,7 +193,7 @@
           <a class="btn btn-secondary buy-v2" href="#">Get V2 — $5 one-time</a>
           <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
         </div>
-        <div class="micro">Windows desktop app · V3 product preview · V2 available now</div>
+        <div class="micro">Windows desktop app · V2 and V3 available now · One-time purchase</div>
         <div class="product-shot">
           <img src="assets/stemplayer-v3-main.png" alt="StemPlayer V3 with dynamic stem tracks, per-track EQ and Export Backing Track" />
         </div>
@@ -323,12 +323,19 @@
 
     <section id="pricing">
       <div class="wrap">
-        <div class="section-head center"><div class="eyebrow">Choose your version</div><h2>Start free. Practice deeper with V2. Build backing tracks with V3.</h2><p class="lead">V1 is free. V2 is available now at the live price shown below. V3 is a product preview and is not yet for sale.</p></div>
+        <div class="section-head center"><div class="eyebrow">Choose your version</div><h2>Start free. Practice deeper with V2. Build backing tracks with V3.</h2><p class="lead">V1 is free. V2 is available at the live price shown below. V3 is available now for $29.99 one-time, with a $20.00 upgrade for existing V2 customers.</p></div>
         <div class="version-card" style="margin-bottom:28px">
-          <div class="v3-badge">StemPlayer V3</div>
+          <div class="v3-badge">StemPlayer V3 · Available now</div>
           <h3>Choose what you play. Export the rest.</h3>
           <p>Dynamic Stem Slots · Per-track EQ · Export Backing Track.</p>
-          <div class="version-note">V3 pricing will be announced with the commercial release.</div>
+          <div class="version-note"><strong>$29.99 one-time</strong> · No subscription</div>
+          <div class="pricing-actions">
+            <a class="btn btn-primary buy-v3" href="#">Get V3 — $29.99</a>
+            <a class="btn btn-secondary upgrade-v3" href="#">Upgrade V2 → V3 — $20.00</a>
+          </div>
+          <div class="micro" style="text-align:center;margin-top:14px">
+            Already own V2? Upgrade to V3 for $20.00 using your StemPlayer V2 license file.
+          </div>
         </div>
         <div style="text-align:center;margin:0 0 16px">
           <div class="v3-badge" style="border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.035);color:var(--text)">StemPlayer V2 · Available now</div>
@@ -380,7 +387,7 @@
       <div class="wrap">
         <div class="section-head"><div class="eyebrow">FAQ</div><h2>Good to know.</h2></div>
         <details><summary>What is new in StemPlayer V3?</summary><p>V3 adds Dynamic Stem Slots, per-track Low/Mid/High EQ, and Export Backing Track. It keeps the practice workflow while adding a way to prepare a custom WAV backing track from your stems.</p></details>
-        <details><summary>Is StemPlayer V3 available to purchase yet?</summary><p>Not yet. V3 pricing will be announced with the commercial release. StemPlayer V2 is available to purchase now.</p></details>
+        <details><summary>Is StemPlayer V3 available to purchase yet?</summary><p>Yes. StemPlayer V3 is available for $29.99 one-time. Existing V2 customers can upgrade to V3 for $20.00.</p></details>
         <details><summary>Does StemPlayer separate songs into stems?</summary><p>No. StemPlayer works with stems you have already separated. The recommended V2 workflow is a 4-stem setup such as htdemucs plus the original full mix as the Reference track.</p></details>
         <details><summary>Is StemPlayer a DAW?</summary><p>No. StemPlayer is a focused music practice tool.</p></details>
         <details><summary>Does StemPlayer teach guitar, bass, drums, or vocals?</summary><p>No. StemPlayer helps you practice. It doesn't teach you.</p></details>
@@ -401,7 +408,7 @@
           <a class="btn btn-secondary buy-v2" href="#">Get StemPlayer V2 — $5</a>
           <a class="btn btn-secondary" href="https://github.com/bithit2003/StemPlayer/releases/tag/v1.0.0" target="_blank" rel="noopener">Download V1 — Free</a>
         </div>
-        <div class="micro">Windows · V2 available now · V3 pricing will be announced with the commercial release</div>
+        <div class="micro">Windows · V2 and V3 available now · One-time purchase · No subscription</div>
       </div>
     </section>
   </main>
@@ -563,6 +570,259 @@
         async (event) => {
           event.preventDefault();
           await startCheckout(button);
+        }
+      );
+    });
+
+
+    // -----------------------------------------------------
+    // StemPlayer V3 checkout
+    // Kept separate from the existing V2 commerce flow.
+    // -----------------------------------------------------
+
+    const CREATE_ORDER_V3_URL =
+      "/.netlify/functions/paypal-create-order-v3";
+
+    const buyV3Buttons =
+      document.querySelectorAll(".buy-v3");
+
+    const upgradeV3Buttons =
+      document.querySelectorAll(".upgrade-v3");
+
+
+    function setV3ButtonsDisabled(disabled) {
+      [
+        ...buyV3Buttons,
+        ...upgradeV3Buttons
+      ].forEach((button) => {
+        button.style.pointerEvents =
+          disabled ? "none" : "";
+
+        button.style.opacity =
+          disabled ? "0.65" : "";
+      });
+    }
+
+
+    async function createV3Order(payload) {
+      const response = await fetch(
+        CREATE_ORDER_V3_URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+
+      const data = await response.json();
+
+      if (
+        !response.ok ||
+        !data.ok ||
+        !data.approval_url
+      ) {
+        const error = new Error(
+          data.error ||
+          "Unable to create StemPlayer V3 PayPal order"
+        );
+
+        error.licenseStatus =
+          data.license_status || null;
+
+        throw error;
+      }
+
+      window.location.href =
+        data.approval_url;
+    }
+
+
+    async function startV3StandardCheckout(button) {
+      const originalText =
+        button.textContent;
+
+      try {
+        setV3ButtonsDisabled(true);
+
+        button.textContent =
+          "Opening secure checkout...";
+
+        await createV3Order({
+          offer: "standard"
+        });
+
+      } catch (error) {
+        console.error(
+          "StemPlayer V3 checkout failed:",
+          error
+        );
+
+        alert(
+          "Unable to start V3 checkout right now. Please try again."
+        );
+
+        button.textContent =
+          originalText;
+
+        setV3ButtonsDisabled(false);
+      }
+    }
+
+
+    function chooseV2LicenseFile() {
+      return new Promise((resolve) => {
+        const input =
+          document.createElement("input");
+
+        input.type = "file";
+        input.accept =
+          ".license,application/json";
+
+        input.style.position = "fixed";
+        input.style.left = "-9999px";
+        input.style.top = "0";
+
+        document.body.appendChild(input);
+
+        const cleanup = () => {
+          if (input.parentNode) {
+            input.parentNode.removeChild(input);
+          }
+        };
+
+        input.addEventListener(
+          "change",
+          () => {
+            const file =
+              input.files &&
+              input.files.length > 0
+                ? input.files[0]
+                : null;
+
+            cleanup();
+            resolve(file);
+          },
+          { once: true }
+        );
+
+        input.click();
+      });
+    }
+
+    async function readV2LicenseFile(file) {
+      const text =
+        await file.text();
+
+      let license;
+
+      try {
+        license =
+          JSON.parse(text);
+      } catch {
+        throw new Error(
+          "INVALID_V2_LICENSE_FILE"
+        );
+      }
+
+      if (
+        !license ||
+        typeof license !== "object" ||
+        Array.isArray(license)
+      ) {
+        throw new Error(
+          "INVALID_V2_LICENSE_FILE"
+        );
+      }
+
+      return license;
+    }
+
+
+    async function startV3UpgradeCheckout(button) {
+      const originalText =
+        button.textContent;
+
+      try {
+        const file =
+          await chooseV2LicenseFile();
+
+        if (!file) {
+          return;
+        }
+
+        button.textContent =
+          "Verifying V2 license...";
+
+        setV3ButtonsDisabled(true);
+
+        const v2License =
+          await readV2LicenseFile(file);
+
+        await createV3Order({
+          offer: "upgrade",
+          v2_license: v2License
+        });
+
+      } catch (error) {
+        console.error(
+          "StemPlayer V3 upgrade checkout failed:",
+          error
+        );
+
+        if (
+          error.message ===
+          "INVALID_V2_LICENSE_FILE"
+        ) {
+          alert(
+            "That file is not a valid StemPlayer V2 license file."
+          );
+        } else if (error.licenseStatus) {
+          alert(
+            "This StemPlayer V2 license could not be verified for the V3 upgrade."
+          );
+        } else {
+          alert(
+            "Unable to start the V3 upgrade checkout right now. Please try again."
+          );
+        }
+
+        button.textContent =
+          originalText;
+
+        setV3ButtonsDisabled(false);
+      }
+    }
+
+
+    buyV3Buttons.forEach((button) => {
+      button.href = "#";
+
+      button.addEventListener(
+        "click",
+        async (event) => {
+          event.preventDefault();
+
+          await startV3StandardCheckout(
+            button
+          );
+        }
+      );
+    });
+
+
+    upgradeV3Buttons.forEach((button) => {
+      button.href = "#";
+
+      button.addEventListener(
+        "click",
+        async (event) => {
+          event.preventDefault();
+
+          await startV3UpgradeCheckout(
+            button
+          );
         }
       );
     });
