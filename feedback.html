@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="description"
+    content="Send feedback, ask a question, or get help with StemPlayer."
+  />
+  <meta name="theme-color" content="#111318" />
+
+  <title>Feedback & Support — StemPlayer</title>
+
+  <style>
+    :root {
+      --bg: #0d0f13;
+      --surface: #151922;
+      --text: #f4f7fb;
+      --muted: #a9b2c3;
+      --line: rgba(255,255,255,.1);
+      --accent: #f0b44d;
+      --accent-2: #ffd98c;
+      --max: 760px;
+      --radius: 22px;
+      --shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(
+          circle at 20% -10%,
+          rgba(240,180,77,.12),
+          transparent 34rem
+        ),
+        linear-gradient(
+          180deg,
+          #0b0d11 0%,
+          #10131a 48%,
+          #0b0d11 100%
+        );
+      line-height: 1.6;
+    }
+
+    .wrap {
+      width: min(var(--max), calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    nav {
+      border-bottom: 1px solid var(--line);
+      background: rgba(11,13,17,.76);
+    }
+
+    .nav-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      color: var(--text);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .brand span {
+      color: var(--accent);
+    }
+
+    .back {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .back:hover {
+      color: var(--text);
+    }
+
+    main {
+      padding: 72px 0 90px;
+    }
+
+    .eyebrow {
+      color: var(--accent-2);
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: .82rem;
+    }
+
+    h1 {
+      margin: 10px 0 14px;
+      font-size: clamp(2.3rem, 7vw, 4.3rem);
+      line-height: 1.02;
+      letter-spacing: -.045em;
+    }
+
+    .lead {
+      margin: 0 0 34px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .form-card {
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.035);
+      box-shadow: var(--shadow);
+    }
+
+    .field {
+      margin-bottom: 22px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 750;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #10141c;
+      color: var(--text);
+      font: inherit;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: 2px solid rgba(240,180,77,.35);
+      border-color: var(--accent);
+    }
+
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #17120a;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .note {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .note strong {
+      color: var(--text);
+    }
+
+    footer {
+      padding: 30px 0 44px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    @media (max-width: 600px) {
+      main {
+        padding-top: 50px;
+      }
+
+      .form-card {
+        padding: 22px;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav>
+    <div class="wrap nav-inner">
+      <a class="brand" href="/">
+        StemPlayer <span>V3</span>
+      </a>
+
+      <a class="back" href="/">
+        ← Back to StemPlayer
+      </a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="wrap">
+
+      <div class="eyebrow">Feedback & Support</div>
+
+      <h1>Talk to StemPlayer.</h1>
+
+      <p class="lead">
+        Found a problem, need help, or have an idea?
+        Send us a message. Your feedback helps us understand
+        how musicians actually use StemPlayer.
+      </p>
+
+      <div class="form-card">
+
+        <form
+          name="stemplayer-feedback"
+          method="POST"
+          action="/feedback-success.html"
+          data-netlify="true"
+          netlify-honeypot="bot-field"
+        >
+
+          <input
+            type="hidden"
+            name="form-name"
+            value="stemplayer-feedback"
+          />
+
+          <p hidden>
+            <label>
+              Don't fill this out:
+              <input name="bot-field" />
+            </label>
+          </p>
+
+          <div class="field">
+            <label for="email">Email</label>
+
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="version">StemPlayer version</label>
+
+            <select
+              id="version"
+              name="version"
+              required
+            >
+              <option value="">Choose a version</option>
+              <option value="V1">V1</option>
+              <option value="V2">V2</option>
+              <option value="V3">V3</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="topic">
+              What can we help with?
+            </label>
+
+            <select
+              id="topic"
+              name="topic"
+              required
+            >
+              <option value="">Choose one</option>
+              <option value="Bug">
+                Bug / Something isn't working
+              </option>
+              <option value="Question">
+                Question / Help
+              </option>
+              <option value="Feature suggestion">
+                Feature suggestion
+              </option>
+              <option value="General feedback">
+                General feedback
+              </option>
+              <option value="Other">
+                Other
+              </option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="message">Message</label>
+
+            <textarea
+              id="message"
+              name="message"
+              required
+              placeholder="Tell us what happened, what you need help with, or what you would like to suggest."
+            ></textarea>
+          </div>
+
+          <button class="btn" type="submit">
+            Send feedback
+          </button>
+
+          <p class="note">
+            Please don't send payment information,
+            passwords, or license private keys.
+            <strong>We only need enough information to understand your message.</strong>
+          </p>
+
+        </form>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <strong style="color:var(--text)">StemPlayer</strong>
+      · From practice to performance.
+    </div>
+  </footer>
+
+</body>
+</html>
