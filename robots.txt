@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stemplayer-app.netlify.app/sitemap.xml
